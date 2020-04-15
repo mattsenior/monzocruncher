@@ -55,6 +55,7 @@ type Confirmation
 type Model
     = AccountLoaded Account
     | Dropzone { isDraggingOver : Bool }
+    | ParseFailure
 
 
 initialModel : Model
@@ -90,46 +91,26 @@ type FileError
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case msg of
-        Reset ->
+    case ( model, msg ) of
+        ( _, Reset ) ->
             ( initialModel, Cmd.none )
 
-        DragEnter ->
-            case model of
-                AccountLoaded _ ->
-                    ( model, Cmd.none )
+        ( Dropzone subModel, DragEnter ) ->
+            ( Dropzone { subModel | isDraggingOver = True }, Cmd.none )
 
-                Dropzone subModel ->
-                    ( Dropzone { subModel | isDraggingOver = True }, Cmd.none )
+        ( Dropzone subModel, DragLeave ) ->
+            ( Dropzone { subModel | isDraggingOver = False }, Cmd.none )
 
-        DragLeave ->
-            case model of
-                AccountLoaded _ ->
-                    ( model, Cmd.none )
-
-                Dropzone subModel ->
-                    ( Dropzone { subModel | isDraggingOver = False }, Cmd.none )
-
-        OpenFilePicker ->
+        ( _, OpenFilePicker ) ->
             ( model, File.Select.file [ "text/csv" ] FileDropped )
 
-        ConfirmTotal ->
-            case model of
-                Dropzone _ ->
-                    ( model, Cmd.none )
+        ( AccountLoaded account, ConfirmTotal ) ->
+            ( AccountLoaded { account | totalConfirmation = Confirmed }, Cmd.none )
 
-                AccountLoaded account ->
-                    ( AccountLoaded { account | totalConfirmation = Confirmed }, Cmd.none )
+        ( AccountLoaded account, RejectTotal ) ->
+            ( AccountLoaded { account | totalConfirmation = Rejected }, Cmd.none )
 
-        RejectTotal ->
-            case model of
-                Dropzone _ ->
-                    ( model, Cmd.none )
-
-                AccountLoaded account ->
-                    ( AccountLoaded { account | totalConfirmation = Rejected }, Cmd.none )
-
-        FileDropped file ->
+        ( _, FileDropped file ) ->
             let
                 resultToMsg result =
                     case result of
@@ -154,7 +135,7 @@ update msg model =
             in
             ( Dropzone { isDraggingOver = False }, cmd )
 
-        AccountParsed fileName account now ->
+        ( _, AccountParsed fileName account now ) ->
             let
                 firstMonth : Calendar.Date
                 firstMonth =
@@ -225,70 +206,48 @@ update msg model =
             , Cmd.none
             )
 
-        ViewAccountListPage ->
-            case model of
-                Dropzone _ ->
-                    ( model, Cmd.none )
+        ( AccountLoaded account, ViewAccountListPage ) ->
+            ( AccountLoaded { account | page = AccountListPage }, Cmd.none )
 
-                AccountLoaded account ->
-                    ( AccountLoaded { account | page = AccountListPage }, Cmd.none )
+        ( AccountLoaded account, ViewAccountMonthPage { month, year } ) ->
+            let
+                newMonths =
+                    Pivot.withRollback
+                        (Pivot.firstWith (\m -> m.year == year && m.month == month))
+                        account.months
+            in
+            ( AccountLoaded
+                { account
+                    | months = newMonths
+                    , page = AccountMonthPage
+                }
+            , Cmd.none
+            )
 
-        ViewAccountMonthPage { month, year } ->
-            case model of
-                Dropzone _ ->
-                    ( model, Cmd.none )
+        ( AccountLoaded account, ViewPrevMonth ) ->
+            ( AccountLoaded { account | months = Pivot.withRollback Pivot.goL account.months }, Cmd.none )
 
-                AccountLoaded account ->
-                    let
-                        newMonths =
-                            Pivot.withRollback
-                                (Pivot.firstWith (\m -> m.year == year && m.month == month))
-                                account.months
-                    in
-                    ( AccountLoaded
-                        { account
-                            | months = newMonths
-                            , page = AccountMonthPage
-                        }
-                    , Cmd.none
-                    )
+        ( AccountLoaded account, ViewNextMonth ) ->
+            ( AccountLoaded { account | months = Pivot.withRollback Pivot.goR account.months }, Cmd.none )
 
-        ViewPrevMonth ->
-            case model of
-                Dropzone _ ->
-                    ( model, Cmd.none )
+        ( _, FileError _ ) ->
+            ( ParseFailure, Cmd.none )
 
-                AccountLoaded account ->
-                    ( AccountLoaded { account | months = Pivot.withRollback Pivot.goL account.months }, Cmd.none )
+        ( AccountLoaded account, DownloadTransactions accountMonth ) ->
+            let
+                { year, month, records } =
+                    accountMonth
 
-        ViewNextMonth ->
-            case model of
-                Dropzone _ ->
-                    ( model, Cmd.none )
+                fileName =
+                    String.fromInt year ++ "-" ++ (month |> Calendar.monthToInt |> String.fromInt |> String.padLeft 2 '0') ++ "-transactions.csv"
 
-                AccountLoaded account ->
-                    ( AccountLoaded { account | months = Pivot.withRollback Pivot.goR account.months }, Cmd.none )
+                download =
+                    File.Download.string fileName "text/csv" (Monzo.recordsToCrunchCsv records)
+            in
+            ( model, download )
 
-        FileError _ ->
+        _ ->
             ( model, Cmd.none )
-
-        DownloadTransactions accountMonth ->
-            case model of
-                Dropzone _ ->
-                    ( model, Cmd.none )
-
-                AccountLoaded account ->
-                    let
-                        { year, month, records } =
-                            accountMonth
-
-                        fileName =
-                            String.fromInt year ++ "-" ++ (month |> Calendar.monthToInt |> String.fromInt |> String.padLeft 2 '0') ++ "-transactions.csv"
-
-                        download =
-                            File.Download.string fileName "text/csv" (Monzo.recordsToCrunchCsv records)
-                    in
-                    ( model, download )
 
 
 fileDecoder : Decode.Decoder ( Msg, Bool )
@@ -305,6 +264,27 @@ view model =
 
         Dropzone { isDraggingOver } ->
             viewDropzone isDraggingOver
+
+        ParseFailure ->
+            viewParseFailure
+
+
+viewParseFailure : Html Msg
+viewParseFailure =
+    viewLayout
+        [ Html.div [ class "container mx-auto px-6" ]
+            [ Html.p []
+                [ Html.span [ class "font-bold" ] [ Html.text "Oh no!" ]
+                , Html.text " Something went wrong when trying to parse the file you selected. Perhaps Monzo has changed the format of their CSV exports, or perhaps there’s a bug with this tool."
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "If you would like to report this as a bug, please "
+                , Html.a [ Attr.href "https://github.com/mattsenior/monzocruncher/issues", class "font-bold underline hover:text-gray-900" ] [ Html.text "open an issue on the GitHub repository" ]
+                , Html.text " and we can chat about it."
+                ]
+            , Html.button [ Events.onClick Reset, class "mt-8 font-bold underline hover:text-gray-900" ] [ Html.text "Start again" ]
+            ]
+        ]
 
 
 viewDropzone : Bool -> Html Msg
@@ -355,7 +335,7 @@ viewDropzone isDraggingOver =
 viewHeader : Html Msg
 viewHeader =
     Html.div [ class "container mx-auto mt-4 mb-6 px-6" ]
-        [ Html.button [ Events.onClick Reset, class "font-display font-bold text-4xl text-white hover:text-gray-900" ]
+        [ Html.a [ Attr.href "/", class "font-display font-bold text-4xl text-white hover:text-gray-900" ]
             [ Html.h1 []
                 [ Html.text
                     "monzocruncher"
@@ -368,7 +348,7 @@ viewFooter : Html Msg
 viewFooter =
     Html.footer
         [ class "container mx-auto px-6 mt-20 mb-12 md:flex" ]
-        [ Html.div [ class "md:w-1/2 md:mr-4" ]
+        [ Html.div [ class "md:w-1/2 md:mr-6" ]
             [ Html.h2 [ class "font-bold", Attr.id "notes" ] [ Html.text "Notes" ]
             , Html.p [ class "mt-8" ]
                 [ Html.text "This tool provides transaction downloads grouped by month. If you want, for example, to reconcile September’s transactions, it’s best to wait until the beginning of October before importing September’s transactions into Crunch. "
@@ -383,7 +363,7 @@ viewFooter =
                 [ Html.text "This tool does not treat Monzo Pots as separate accounts—pot transfer records are not included in the CSV you upload to Crunch."
                 ]
             ]
-        , Html.div [ class "mt-12 md:mt-0 md:w-1/2 md:ml-4" ]
+        , Html.div [ class "mt-12 md:mt-0 md:w-1/2 md:ml-6" ]
             [ Html.h2 [ class "font-bold" ] [ Html.text "Important Waffle" ]
             , Html.p [ class "mt-8" ]
                 [ Html.text "This is an unofficial hobby project built by "
@@ -446,7 +426,7 @@ viewAccount account =
                         , Html.button
                             [ Events.onClick RejectTotal
                             , classes
-                                [ "block w-full mt-6 md:w-1/2 pt-4 pb-5 md:ml-4 rounded-full text-2xl text-center"
+                                [ "block w-full mt-6 md:mt-0 md:w-1/2 pt-4 pb-5 md:ml-4 rounded-full text-2xl text-center"
                                 , "border-2 text-gray-900 border-red-700 hover:bg-red-700 hover:text-white"
                                 ]
                             ]
@@ -686,7 +666,7 @@ viewMonthList account =
                         ]
                         [ Html.span [ class "hidden md:inline font-bold" ]
                             [ Html.text <|
-                                " Download "
+                                "Download "
                             ]
                         , Svg.svg
                             [ SvgAttr.viewBox
