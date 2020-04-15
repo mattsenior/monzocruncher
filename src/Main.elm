@@ -287,31 +287,56 @@ viewParseFailure =
         ]
 
 
+viewPreStep1 : Html Msg
+viewPreStep1 =
+    Html.p []
+        [ Html.text "Convert your Monzo Business CSV exports into a CSV format that Crunch will recognise for bank reconciliation. "
+        , Html.br [] []
+        , Html.a [ Attr.href "#notes", class "font-bold underline hover:text-gray-900" ] [ Html.text "Read the footer blurb for caveats, etc." ]
+        ]
+
+
+viewStep1 : Bool -> Html Msg
+viewStep1 done =
+    Html.p [ class "mt-8", Attr.classList [ ( "opacity-50", done ) ] ]
+        [ Html.span [ class "font-bold" ]
+            [ Html.text "Step 1. "
+            ]
+        , Html.text "Export an "
+        , Html.strong [ class "italic font-bold" ] [ Html.text "all-time" ]
+        , Html.text " CSV from your Monzo Business account (mobile or web interface)"
+        ]
+
+
+viewStep2 : Bool -> Html Msg
+viewStep2 done =
+    Html.p [ class "mt-2", Attr.classList [ ( "opacity-50", done ) ] ]
+        [ Html.span [ class "font-bold" ]
+            [ Html.text "Step 2. "
+            ]
+        , Html.text "Drop your CSV file onto the box below, or "
+        , Html.button [ Events.onClick OpenFilePicker, class "font-bold underline hover hover:text-gray-900" ] [ Html.text "manually select the file" ]
+        ]
+
+
+viewStep3 : Account -> Bool -> Html Msg
+viewStep3 account done =
+    Html.p
+        [ class "mt-2", Attr.classList [ ( "opacity-50", done ) ] ]
+        [ Html.span [ class "font-bold" ] [ Html.text "Step 3. " ]
+        , Html.text "Is your total bank balance (including pots) exactly "
+        , Html.span [ class "font-bold" ] [ Html.text <| viewAmount account.totalAmountInPence ]
+        ]
+
+
 viewDropzone : Bool -> Html Msg
 viewDropzone isDraggingOver =
     viewLayout
         [ Html.div
             [ class "container mx-auto px-6" ]
-            [ Html.p []
-                [ Html.text "Convert your Monzo Business CSV exports into a CSV format that Crunch will recognise for bank reconciliation. "
-                , Html.br [] []
-                , Html.a [ Attr.href "#notes", class "font-bold underline hover:text-gray-900" ] [ Html.text "Read the footer blurb for caveats, etc." ]
-                ]
-            , Html.p [ class "mt-8" ]
-                [ Html.span [ class "font-bold" ]
-                    [ Html.text "Step 1. "
-                    ]
-                , Html.text "Export an "
-                , Html.strong [ class "italic font-bold" ] [ Html.text "all-time" ]
-                , Html.text " CSV from your Monzo Business account (mobile or web interface)"
-                ]
-            , Html.p [ class "mt-8" ]
-                [ Html.span [ class "font-bold" ]
-                    [ Html.text "Step 2. "
-                    ]
-                , Html.text "Drop your CSV file onto the box below, or "
-                , Html.button [ Events.onClick OpenFilePicker, class "font-bold underline hover hover:text-gray-900" ] [ Html.text "manually select the file" ]
-                ]
+            [ viewPreStep1
+            , viewStep1 False
+            , viewStep2 False
             , Html.a
                 [ Events.preventDefaultOn "dragover" (Decode.succeed ( DragEnter, True ))
                 , Events.on "dragleave" (Decode.succeed DragLeave)
@@ -405,11 +430,10 @@ viewAccount account =
         Pending ->
             viewLayout
                 [ Html.div [ class "container mx-auto px-6" ]
-                    [ Html.p []
-                        [ Html.span [ class "font-bold" ] [ Html.text "Step 3. " ]
-                        , Html.text "Is your total bank balance (including pots) exactly "
-                        , Html.span [ class "font-bold" ] [ Html.text <| viewAmount account.totalAmountInPence ]
-                        ]
+                    [ viewPreStep1
+                    , viewStep1 True
+                    , viewStep2 True
+                    , viewStep3 account False
                     , Html.div [ class "mt-8 md:flex md:items-stretch" ]
                         [ Html.button
                             [ Events.onClick ConfirmTotal
@@ -686,7 +710,11 @@ viewMonthList account =
     viewLayout
         [ Html.div
             [ class "container mx-auto px-6" ]
-            [ Html.p []
+            [ viewPreStep1
+            , viewStep1 True
+            , viewStep2 True
+            , viewStep3 account True
+            , Html.p [ class "mt-2" ]
                 [ Html.span [ class "font-bold" ]
                     [ Html.text "Step 4. "
                     ]
