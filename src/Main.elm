@@ -393,7 +393,7 @@ viewFooter =
             , Html.p [ class "mt-8" ]
                 [ Html.text "All processing takes place in your browser. None of your data is sent or stored anywhere. All code for the site can be found "
                 , Html.a [ Attr.href "https://github.com/mattsenior/monzocruncher", class "font-bold underline hover:text-gray-900" ] [ Html.text "on the GitHub repository" ]
-                , Html.text "."
+                , Html.text ", which you can clone and run locally if you prefer."
                 ]
             , Html.p [ class "mt-8" ]
                 [ Html.text "You should have a look through any transactions you download before uploading to Crunch—I’m not responsible for the correctness of the data!"
@@ -404,8 +404,11 @@ viewFooter =
                 , Html.text "."
                 ]
             , Html.p [ class "mt-8" ]
-                [ Html.text "Download icon credit: "
+                [ Html.text "Credits: Icon from "
                 , Html.a [ Attr.href "https://github.com/sschoger/heroicons-ui", class "font-bold underline hover:text-gray-900" ] [ Html.text "Heroicons" ]
+                , Html.text ", CSV parser code extended from "
+                , Html.a [ Attr.href "https://github.com/periodic/elm-csv", class "font-bold underline hover:text-gray-900" ] [ Html.text "periodic/elm-csv" ]
+                , Html.text "."
                 ]
             ]
         ]

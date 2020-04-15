@@ -1,69 +1,11 @@
 module Csv exposing
     ( Csv
+    , MakeRecordParser
     , parse
     , parseWith
-    , MakeRecordParser
     )
 
-{-| A parser for transforming CSV strings into usable input.
-
-This library does its best to support RFC 4180, however, many CSV inputs do not strictly follow the standard. There are two major deviations assumed in this library.
-
-1.  The `\n` or `\r` character may be used instead of `\r\n` for line separators.
-2.  The trailing new-line may be omitted.
-
-RFC 4180 grammar, for reference, with notes.
-
-The trailing newline is required, but we'll make it optional.
-
-    file =
-        [ header CRLF ] record * CRLF record [ CRLF ]
-
-    header =
-        name * COMMA name
-
-    record =
-        field * COMMA field
-
-    name =
-        field
-
-    field =
-        escaped / non - escaped
-
-There is no room for spaces around the quotes. The specification is that
-
-    escaped =
-        DQUOTE * (TEXTDATA / COMMA / CR / LF / 2 DQUOTE) DQUOTE
-
-In this specification, fields that don't have quotes surrounding them cannot have a quote inside them because it is excluded from `TEXTDATA`.
-
-    non-escaped = *TEXTDATA
-    COMMA = %x2C
-    CR = %x0D ;as per section 6.1 of RFC 2234 [2]
-    DQUOTE =  %x22 ;as per section 6.1 of RFC 2234 [2]
-    LF = %x0A ;as per section 6.1 of RFC 2234 [2]
-
-The spec requires that new lines be `CR + LF` but we'll let them get away with just `LF` if they want..
-
-    CRLF = CR LF ;as per section 6.1 of RFC 2234 [2]
-
-All the printable characters minus the double-quote and comma, this is important above.
-
-    TEXTDATA =  %x20-21 / %x23-2B / %x2D-7E
-
-
-# Types
-
-@docs Csv
-
-
-# Functions
-
-@docs parse
-@docs parseWith
-
--}
+-- This CSV parsing code is an extension of https://github.com/periodic/elm-csv
 
 import Parser
     exposing
