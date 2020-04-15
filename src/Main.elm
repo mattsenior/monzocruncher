@@ -14,6 +14,8 @@ import List.Extra
 import Monzo
 import Pivot exposing (Pivot)
 import Result.Extra
+import Svg
+import Svg.Attributes as SvgAttr
 import Task
 import Time exposing (Month(..))
 
@@ -79,7 +81,7 @@ type Msg
     | ViewAccountListPage
     | ViewPrevMonth
     | ViewNextMonth
-    | DownloadTransactions
+    | DownloadTransactions AccountMonth
 
 
 type FileError
@@ -270,7 +272,7 @@ update msg model =
         FileError _ ->
             ( model, Cmd.none )
 
-        DownloadTransactions ->
+        DownloadTransactions accountMonth ->
             case model of
                 Dropzone _ ->
                     ( model, Cmd.none )
@@ -278,7 +280,7 @@ update msg model =
                 AccountLoaded account ->
                     let
                         { year, month, records } =
-                            Pivot.getC account.months
+                            accountMonth
 
                         fileName =
                             String.fromInt year ++ "-" ++ (month |> Calendar.monthToInt |> String.fromInt |> String.padLeft 2 '0') ++ "-transactions.csv"
@@ -307,11 +309,30 @@ view model =
 
 viewDropzone : Bool -> Html Msg
 viewDropzone isDraggingOver =
-    Html.main_ []
-        [ viewHeader
-        , Html.div
+    viewLayout
+        [ Html.div
             [ class "container mx-auto px-6" ]
-            [ Html.a
+            [ Html.p []
+                [ Html.text "Convert your Monzo Business CSV exports into a CSV format that Crunch will recognise for bank reconciliation. "
+                , Html.br [] []
+                , Html.a [ Attr.href "#notes", class "font-bold underline hover:text-gray-900" ] [ Html.text "Read the footer blurb for caveats, etc." ]
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.span [ class "font-bold" ]
+                    [ Html.text "Step 1. "
+                    ]
+                , Html.text "Export an "
+                , Html.strong [ class "italic font-bold" ] [ Html.text "all-time" ]
+                , Html.text " CSV from your Monzo Business account (mobile or web interface)"
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.span [ class "font-bold" ]
+                    [ Html.text "Step 2. "
+                    ]
+                , Html.text "Drop your CSV file onto the box below, or "
+                , Html.button [ Events.onClick OpenFilePicker, class "font-bold underline hover hover:text-gray-900" ] [ Html.text "manually select the file" ]
+                ]
+            , Html.a
                 [ Events.preventDefaultOn "dragover" (Decode.succeed ( DragEnter, True ))
                 , Events.on "dragleave" (Decode.succeed DragLeave)
                 , Events.preventDefaultOn "drop" fileDecoder
@@ -320,12 +341,12 @@ viewDropzone isDraggingOver =
                     [ "bg-gray-800 border-8 border-gray-900"
                     , "hover:bg-gray-700"
                     , "active:bg-gray-800"
-                    , "cursor-pointer h-64 text-white flex items-center justify-center text-center"
+                    , "mt-8 cursor-pointer h-64 text-white flex items-center justify-center text-center"
                     ]
                 , Attr.classList [ ( "bg-pink-800", isDraggingOver ) ]
                 ]
                 [ Html.span []
-                    [ Html.text "Upload your Monzo business CSV" ]
+                    [ Html.text "Drop your Monzo business CSV here" ]
                 ]
             ]
         ]
@@ -333,37 +354,104 @@ viewDropzone isDraggingOver =
 
 viewHeader : Html Msg
 viewHeader =
-    Html.h1 [ class "container mx-auto font-display font-bold text-4xl text-white mt-4 mb-6 px-6" ]
-        [ Html.text "monzocruncher" ]
+    Html.div [ class "container mx-auto mt-4 mb-6 px-6" ]
+        [ Html.button [ Events.onClick Reset, class "font-display font-bold text-4xl text-white hover:text-gray-900" ]
+            [ Html.h1 []
+                [ Html.text
+                    "monzocruncher"
+                ]
+            ]
+        ]
+
+
+viewFooter : Html Msg
+viewFooter =
+    Html.footer
+        [ class "container mx-auto px-6 mt-20 mb-12 md:flex" ]
+        [ Html.div [ class "md:w-1/2 md:mr-4" ]
+            [ Html.h2 [ class "font-bold", Attr.id "notes" ] [ Html.text "Notes" ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "This tool provides transaction downloads grouped by month. If you want, for example, to reconcile September’s transactions, it’s best to wait until the beginning of October before importing September’s transactions into Crunch. "
+                , Html.text "That way you never run into errors with duplicate transactions in Crunch."
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "You have to upload an "
+                , Html.em [ class "italic" ] [ Html.text "all-time" ]
+                , Html.text " CSV export, instead of just a single month, so that the ‘cumulative balance’ column can be calculated."
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "This tool does not treat Monzo Pots as separate accounts—pot transfer records are not included in the CSV you upload to Crunch."
+                ]
+            ]
+        , Html.div [ class "mt-12 md:mt-0 md:w-1/2 md:ml-4" ]
+            [ Html.h2 [ class "font-bold" ] [ Html.text "Important Waffle" ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "This is an unofficial hobby project built by "
+                , Html.a [ Attr.href "https://mattsenior.com", class "font-bold underline hover:text-gray-900" ] [ Html.text "Matt Senior" ]
+                , Html.text " to scratch an itch. Neither Monzo nor Crunch have anything to do with it."
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "All processing takes place in your browser. None of your data is sent or stored anywhere. All code for the site can be found "
+                , Html.a [ Attr.href "https://github.com/mattsenior/monzocruncher", class "font-bold underline hover:text-gray-900" ] [ Html.text "on the GitHub repository" ]
+                , Html.text "."
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "You should have a look through any transactions you download before uploading to Crunch—I’m not responsible for the correctness of the data!"
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "Monzo changes their CSV format now and again, so this tool will periodically break. I will probably update it within a month because I use it for my own reconciliation, but if you spot any errors, or if you have a file that isn’t processed correctly, please let me know by "
+                , Html.a [ Attr.href "https://github.com/mattsenior/monzocruncher/issues", class "font-bold underline hover:text-gray-900" ] [ Html.text "opening a GitHub issue" ]
+                , Html.text "."
+                ]
+            , Html.p [ class "mt-8" ]
+                [ Html.text "Download icon credit: "
+                , Html.a [ Attr.href "https://github.com/sschoger/heroicons-ui", class "font-bold underline hover:text-gray-900" ] [ Html.text "Heroicons" ]
+                ]
+            ]
+        ]
+
+
+viewLayout : List (Html Msg) -> Html Msg
+viewLayout content =
+    Html.main_ [] <| [ viewHeader ] ++ content ++ [ viewFooter ]
 
 
 viewAccount : Account -> Html Msg
 viewAccount account =
     case account.totalConfirmation of
         Pending ->
-            Html.main_ []
-                [ viewHeader
-                , Html.div [ class "container mx-auto px-6 text-lg" ]
+            viewLayout
+                [ Html.div [ class "container mx-auto px-6" ]
                     [ Html.p []
-                        [ Html.text "Is your total bank balance (including pots) exactly "
+                        [ Html.span [ class "font-bold" ] [ Html.text "Step 3. " ]
+                        , Html.text "Is your total bank balance (including pots) exactly "
                         , Html.span [ class "font-bold" ] [ Html.text <| viewAmount account.totalAmountInPence ]
                         ]
-                    , Html.button
-                        [ Events.onClick ConfirmTotal
-                        , classes
-                            [ "block my-4 py-2 w-full rounded-full text-xl text-center"
-                            , "bg-white hover:bg-teal-400"
+                    , Html.div [ class "mt-8 md:flex md:items-stretch" ]
+                        [ Html.button
+                            [ Events.onClick ConfirmTotal
+                            , classes
+                                [ "block w-full md:w-1/2 pt-4 pb-5 md:mr-4 rounded-full text-2xl text-center font-bold"
+                                , "bg-white text-gray-900"
+                                , "hover:bg-gray-900 hover:text-white"
+                                ]
+                            ]
+                            [ Html.span [ class "md:text-4xl mr-4 md:mr-0" ] [ Html.text "🎉" ]
+                            , Html.br [ class "hidden md:inline" ] []
+                            , Html.text "Yes it is!"
+                            ]
+                        , Html.button
+                            [ Events.onClick RejectTotal
+                            , classes
+                                [ "block w-full mt-6 md:w-1/2 pt-4 pb-5 md:ml-4 rounded-full text-2xl text-center"
+                                , "border-2 text-gray-900 border-red-700 hover:bg-red-700 hover:text-white"
+                                ]
+                            ]
+                            [ Html.span [ class "md:text-4xl mr-4 md:mr-0" ] [ Html.text "\u{1F926}\u{200D}♂️" ]
+                            , Html.br [ class "hidden md:inline" ] []
+                            , Html.text "No, no it’s not"
                             ]
                         ]
-                        [ Html.text "Yessir" ]
-                    , Html.button
-                        [ Events.onClick RejectTotal
-                        , classes
-                            [ "block my-4 py-2 w-full rounded-full text-center"
-                            , "border-2 border-red-700 hover:bg-red-700"
-                            ]
-                        ]
-                        [ Html.text "No, no it’s not" ]
                     ]
                 ]
 
@@ -371,9 +459,19 @@ viewAccount account =
             viewAccountPage account
 
         Rejected ->
-            Html.div []
-                [ Html.text "Oh no!"
-                , Html.button [ Events.onClick Reset ] [ Html.text "Start again" ]
+            viewLayout
+                [ Html.div [ class "container mx-auto px-6" ]
+                    [ Html.p []
+                        [ Html.span [ class "font-bold" ] [ Html.text "Oh no!" ]
+                        , Html.text " Something has clearly gone wrong when importing your transactions."
+                        ]
+                    , Html.p [ class "mt-8" ]
+                        [ Html.text "If you would like to report this as a bug, please "
+                        , Html.a [ Attr.href "https://github.com/mattsenior/monzocruncher/issues", class "font-bold underline hover:text-gray-900" ] [ Html.text "open an issue on the GitHub repository" ]
+                        , Html.text " and we can chat about it."
+                        ]
+                    , Html.button [ Events.onClick Reset, class "mt-8 font-bold underline hover:text-gray-900" ] [ Html.text "Start again" ]
+                    ]
                 ]
 
 
@@ -472,8 +570,11 @@ viewAccountPage account =
 viewMonth : Account -> Html Msg
 viewMonth account =
     let
-        { month, year, records } =
+        accountMonth =
             Pivot.getC account.months
+
+        { month, year, records } =
+            accountMonth
 
         nextMonth =
             Pivot.goL account.months |> Maybe.map (Pivot.getC >> (\m -> monthToString m.month ++ " " ++ String.fromInt m.year))
@@ -503,15 +604,14 @@ viewMonth account =
                 Monzo.ActiveCardCheckRecord activeCardCheck ->
                     Html.tr [] [ Html.td [] [ Html.text "Active card check" ] ]
     in
-    Html.main_ []
-        [ viewHeader
-        , Html.div [ class "container mx-auto px-6 text-lg" ]
+    viewLayout
+        [ Html.div [ class "container mx-auto px-6 text-lg" ]
             [ Html.nav [ class "flex justify-between" ] navs
             , Html.h2 [ class "text-center font-semibold text-2xl whitespace-no-wrap" ]
                 [ Html.text <| monthToString month ++ " " ++ String.fromInt year
                 ]
-            , Html.button [ Events.onClick DownloadTransactions ] [ Html.text "Download transactions" ]
-            , Html.table [ class "" ]
+            , Html.button [ Events.onClick <| DownloadTransactions accountMonth ] [ Html.text "Download transactions" ]
+            , Html.table []
                 (List.map viewRecord records)
             ]
         ]
@@ -521,8 +621,11 @@ viewMonthList : Account -> Html Msg
 viewMonthList account =
     let
         viewStatementSummary : AccountMonth -> Html Msg
-        viewStatementSummary { month, year, records } =
+        viewStatementSummary accountMonth =
             let
+                { month, year, records } =
+                    accountMonth
+
                 numRecords =
                     List.length records
 
@@ -551,37 +654,67 @@ viewMonthList account =
                                 "s"
                            )
             in
-            Html.li [ class "my-2" ]
-                [ Html.a
-                    [ class "bg-white p-4 flex justify-between cursor-pointer"
-                    , Events.onClick (ViewAccountMonthPage { year = year, month = month })
+            Html.li [ class "mt-8 text-xl flex items-center" ]
+                [ Html.div [ class "flex-1 md:w-2/3 md:text-right font-bold md:flex" ]
+                    [ Html.div [ class "md:w-1/2" ]
+                        [ Html.text <|
+                            monthToString
+                                month
+                                ++ " "
+                                ++ String.fromInt year
+                        ]
+                    , Html.div [ class "md:w-1/2 md:text-center font-normal" ]
+                        [ Html.text <|
+                            String.fromInt
+                                numTransactions
+                                ++ " "
+                                ++ pluralise "transaction"
+                                    numTransactions
+                        ]
                     ]
-                    [ Html.span [] [ Html.text <| monthToString month ++ " " ++ String.fromInt year ]
-                    , Html.span []
-                        [ Html.span [ class "text-teal-400" ]
-                            [ Html.text <|
-                                String.fromInt numTransactions
-                                    ++ " "
-                                    ++ pluralise "transaction" numTransactions
+                , Html.div [ class "flex-shrink-0 md:w-1/3" ]
+                    [ Html.button
+                        [ Events.onClick <| DownloadTransactions accountMonth
+                        , classes
+                            [ "py-3 px-6 rounded-full text-base"
+                            , "bg-white text-gray-900 hover:bg-gray-900 hover:text-white"
+                            , "flex items-center"
                             ]
-                        , Html.br [] []
-                        , Html.span []
+                        ]
+                        [ Html.span [ class "hidden md:inline font-bold" ]
                             [ Html.text <|
-                                String.fromInt numOther
-                                    ++ " "
-                                    ++ pluralise "Other record" numOther
+                                " Download "
+                            ]
+                        , Svg.svg
+                            [ SvgAttr.viewBox
+                                "0 0 24 24"
+                            , SvgAttr.class
+                                "md:ml-2 h-5 w-5 fill-current"
+                            ]
+                            [ Svg.path
+                                [ SvgAttr.d "M11 14.59V3a1 1 0 012 0v11.59l3.3-3.3a1 1 0 011.4 1.42l-5 5a1 1 0 01-1.4 0l-5-5a1 1 0 011.4-1.42l3.3 3.3zM3 17a1 1 0 012 0v3h14v-3a1 1 0 012 0v3a2 2 0 01-2 2H5a2 2 0 01-2-2v-3z"
+                                ]
+                                []
                             ]
                         ]
                     ]
                 ]
     in
-    Html.main_ []
-        [ viewHeader
-        , Html.ol [ class "container mx-auto px-6 text-lg" ]
-            (Pivot.toList
-                account.months
-                |> List.map viewStatementSummary
-            )
+    viewLayout
+        [ Html.div
+            [ class "container mx-auto px-6" ]
+            [ Html.p []
+                [ Html.span [ class "font-bold" ]
+                    [ Html.text "Step 4. "
+                    ]
+                , Html.text "Download the month you need, and import the CSV into Crunch."
+                ]
+            , Html.ol [ class "mt-12" ]
+                (Pivot.toList
+                    account.months
+                    |> List.map viewStatementSummary
+                )
+            ]
         ]
 
 

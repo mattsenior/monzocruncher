@@ -1,7 +1,9 @@
+/* purgecss start ignore */
 @tailwind base;
 @tailwind components;
+/* purgecss end ignore */
 
-body {
+.bg-brand-gradient {
   background: rgba(255, 76, 85, 1);
   background: linear-gradient(
     to bottom,
