@@ -344,6 +344,12 @@ makeTransactionParser { field, fieldSep, lineSep } =
         |. fieldSep
         -- Category split
         |. field
+        |. fieldSep
+        -- Money Out
+        |. field
+        |. fieldSep
+        -- Money In
+        |. field
         |. lineSep
 
 
@@ -397,6 +403,12 @@ makePotTransferParser { field, fieldSep, lineSep } =
         |. fieldSep
         -- Category split
         |. field
+        |. fieldSep
+        -- Money Out
+        |. field
+        |. fieldSep
+        -- Money In
+        |. field
         |. lineSep
 
 
@@ -449,6 +461,12 @@ makeActiveCardCheckParser { field, fieldSep, lineSep } =
         |= field
         |. fieldSep
         -- Category split
+        |. field
+        |. fieldSep
+        -- Money Out
+        |. field
+        |. fieldSep
+        -- Money In
         |. field
         |. lineSep
 
